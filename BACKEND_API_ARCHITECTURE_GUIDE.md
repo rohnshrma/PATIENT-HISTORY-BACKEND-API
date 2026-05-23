@@ -1,497 +1,412 @@
-# Backend API Architecture Guide
+# Backend API Architecture Guide (Beginner-Friendly)
 
-## 1. System Intent and Architectural Direction
+## 1. What This Backend Is Trying to Solve
 
-This backend is designed as a security-first, patient-controlled medical history platform where access to health data is not implied by account existence, professional role, or successful login. The core architectural intent is to make the patient the authority over who can view what data, for how long, and under what context, while preserving a complete accountability trail for every sensitive operation.
+This backend is built for a medical history app where the **patient stays in control** of their data.
 
-The backend exists to orchestrate the following capabilities as one cohesive system:
+Main goals:
 
-- identity verification and session security
-- role-aware authorization boundaries
-- consent-governed doctor access
-- constrained emergency visibility
-- immutable-style medical record progression
-- auditable access and activity history
-- secure local file storage and retrieval
+- keep medical data private and secure
+- allow doctors to access records only with patient consent
+- allow emergency contacts to see only critical health details
+- track every important access in audit logs
+- store medical files locally on the server (not on cloud storage)
 
-The system is built around a modular Node.js + Express API layer, MongoDB data persistence via Mongoose models, and a locally managed server filesystem for medical report files. Metadata and relational context live in MongoDB; binary report artifacts remain on disk under protected server directories and are never exposed as directly public assets.
+This means login alone is never enough to view all patient data.
 
-## 2. Backend Architectural Principles
+## 2. Core Backend Stack
 
-### 2.1 Patient-Controlled Access Philosophy
+- **Runtime/API:** Node.js + Express
+- **Database:** MongoDB (with Mongoose)
+- **Authentication:** OTP + JWT
+- **Authorization:** RBAC + consent checks + emergency scope checks
+- **File storage:** local server filesystem (`uploads/`)
 
-Patient-controlled access is the governing philosophy of this backend. Authentication proves identity, but authorization requires contextual permission checks tied to patient consent, emergency policy, and role-specific constraints.
+## 3. High-Level Backend Modules
 
-This principle directly enforces that:
+The backend has multiple modules that work together:
 
-- doctor authentication does not equal authorization to any patient record
-- emergency contact authentication does not equal full patient record access
-- admin authority is operational and governance-oriented, not unrestricted clinical viewing by default
-- all access pathways are inspectable through audit logs
+- Auth Module
+- Consent Module
+- Medical Records Module
+- Emergency Access Module
+- Audit Log Module
+- Upload/File Access Module
 
-### 2.2 Separation of Concerns
+Together, these modules decide:
 
-The architecture separates transport concerns, business logic, security decisions, data modeling, and file handling responsibilities across distinct backend folders and modules. This lowers coupling, improves testability, and reduces security drift where authorization logic can otherwise fragment across routes.
+- who you are (authentication)
+- what your role can do (RBAC)
+- whether this specific patient allowed access (consent)
+- whether emergency-only limited access applies
+- what gets logged for accountability
 
-### 2.3 Append-Only Record Discipline
+## 4. Suggested Folder Structure and Purpose
 
-Medical records are treated as append-only events rather than mutable historical facts. Instead of rewriting old data, new entries should represent updates, corrections, or follow-up events. This preserves timeline integrity, simplifies medico-legal traceability, and aligns with auditability goals.
+- `routes/`: API endpoint definitions
+- `controllers/`: request/response handlers
+- `services/`: business logic and rules
+- `models/`: MongoDB schemas
+- `middleware/`: auth, RBAC, consent, security checks
+- `validators/`: request data validation
+- `utils/`: shared helper functions (tokens, encryption helpers, etc.)
+- `uploads/`: local file storage and upload handling
 
-### 2.4 Explicit Consent Lifecycles
+Why this separation matters:
 
-Consent is time-bound, revocable, and scoped. Access is evaluated at request time rather than inferred once and cached indefinitely. Consent expiration exists to prevent stale permissions from silently becoming permanent access.
-
-### 2.5 Comprehensive Auditability
-
-Every meaningful access action should produce an audit event carrying actor, target, action, context, time, and source IP. Audit is not a support feature; it is a core control mechanism enabling patient trust, incident response, and compliance-ready accountability.
-
-## 3. High-Level Backend Topology
-
-The architecture follows a modular MERN backend pattern with the API server as policy enforcement point.
-
-- API Layer: Express routes/controllers receive requests and enforce HTTP-level boundaries.
-- Security Layer: authentication middleware, RBAC checks, consent checks, emergency scope checks, rate limiting, helmet/cors hardening.
-- Domain Services Layer: medical records, consent, emergency access decisions, audit event generation, OTP/JWT lifecycle orchestration.
-- Data Layer: MongoDB collections for users, patient/doctor profiles, records, consents, emergency contacts, audit logs.
-- File Layer (Local): filesystem directories for report artifacts with strict non-public access and controlled streaming.
-
-All sensitive business decisions are expected to be resolved server-side. The frontend is a client of this policy engine and does not define access truth.
-
-## 4. Recommended Backend Folder Organization and Responsibilities
-
-### 4.1 `routes/`
-
-Defines HTTP resource endpoints and route-to-controller mapping. Route files represent API surface boundaries and should remain thin. They should not contain policy-heavy domain logic beyond attaching appropriate middleware chains.
-
-### 4.2 `controllers/`
-
-Controllers translate validated HTTP input into service calls and shape HTTP responses. They coordinate request context, actor identity, and service outcomes. Controllers should avoid embedding persistent domain decisions that belong in services.
-
-### 4.3 `services/`
-
-The core business logic layer. Services implement consent evaluation rules, emergency-access filtering logic, record append behavior, audit event construction, and file metadata + storage coordination. This is where architectural rules are centralized for consistency.
-
-### 4.4 `models/`
-
-Mongoose schema definitions for each domain collection. Models define structural constraints, indexes, and entity relationships used by services.
-
-### 4.5 `middleware/`
-
-Cross-cutting guards and request preprocessing components:
-
-- authentication validation
-- role checks (RBAC)
-- consent gate checks
-- emergency mode constraints
-- request rate limiting
-- request security headers and cross-origin policy compatibility
-
-### 4.6 `validators/`
-
-Input contract enforcement for payload shape, required fields, role-dependent constraints, record format controls, upload metadata checks, and consent payload integrity. Validators prevent malformed input from reaching services.
-
-### 4.7 `utils/`
-
-Reusable technical helpers for token operations, hashing, encryption utilities, standardized error objects, date/time helpers, and secure filename generation mechanisms.
-
-### 4.8 `uploads/`
-
-Local file handling support components, including upload middleware configuration, MIME and size validation orchestration, and helper functions for disk-path composition and safe file retrieval.
+- easier to maintain
+- easier to test
+- security logic stays consistent
+- less chance of mixing critical rules inside random files
 
 ## 5. Complete Request Lifecycle
 
-A secure request lifecycle should follow a deterministic path:
+A typical protected request follows this flow:
 
-1. Request enters Express route.
-2. Security middlewares execute in order: rate limiting, header hardening context, authentication extraction, role checks, and domain-specific access gates.
-3. Validators enforce payload contract and reject malformed content early.
-4. Controller reads sanitized request context and forwards to service.
-5. Service executes domain logic with DB queries and, if applicable, local file subsystem interactions.
-6. Service records audit event for attempted and/or successful sensitive actions.
-7. Controller returns normalized response or mapped error.
-8. Error handling middleware standardizes failure responses and avoids leaking internals.
+1. Request hits a route.
+2. Middleware checks security headers/rate limits.
+3. JWT authentication middleware verifies identity.
+4. RBAC middleware checks user role.
+5. Consent/emergency middleware checks patient-level permissions.
+6. Validator checks request format.
+7. Controller calls service layer.
+8. Service reads/writes MongoDB and local files (if needed).
+9. Audit log is recorded.
+10. Response is returned.
 
-This lifecycle ensures that every critical action passes through authentication, authorization, validation, domain policy, and auditing before completion.
+This layered flow prevents unsafe direct access.
 
-## 6. Authentication Architecture (OTP + JWT)
+## 6. Authentication: OTP + JWT Flow
 
-### 6.1 Authentication Goals
+### Step-by-step
 
-Authentication verifies user identity while minimizing sensitive identifier retention and reducing attack surface from credential reuse.
+1. User starts login.
+2. OTP is generated and sent.
+3. User submits OTP.
+4. Backend verifies OTP and validity window.
+5. On success, backend issues JWT access token (and refresh strategy if used).
+6. Client sends JWT in future requests.
+7. Middleware verifies JWT for protected routes.
 
-### 6.2 OTP Verification Stage
+Why this is useful:
 
-OTP-based login flow establishes proof of possession for the registered communication channel. OTP verification should be bounded by expiration windows, retry limits, and anti-bruteforce controls.
+- stronger than simple password-only patterns
+- short-lived access tokens reduce risk
+- easier to secure sessions
 
-### 6.3 JWT Session Stage
+## 7. RBAC (Role-Based Access Control)
 
-After OTP verification, JWT access tokens represent authenticated session context. Refresh-token strategy supports controlled session continuation while enabling token rotation and revocation-oriented session hygiene.
+Roles:
 
-### 6.4 Combined OTP + JWT Flow
+- Patient
+- Doctor
+- Emergency Contact
+- Admin
 
-- user initiates login
-- OTP challenge generated and delivered
-- OTP validated
-- tokens issued upon successful verification
-- authenticated requests include JWT
-- middleware verifies token validity and attaches actor context
-- refresh flow renews access under controlled policy
+RBAC sets high-level permissions by role. But RBAC alone is not enough.
 
-This separation prevents static password-only dependency and provides stronger, event-based authentication assurance.
+Important principle:
 
-## 7. RBAC Architecture
+- **Doctor login does not automatically give access to all patient records.**
 
-### 7.1 Role Definitions
-
-Roles include:
-
-- patient
-- doctor
-- emergency contact
-- admin
-
-### 7.2 RBAC Enforcement Philosophy
-
-RBAC defines maximum possible capabilities per role. It does not alone grant data-level access to patient records. Data access remains additionally constrained by consent and emergency policy checks.
-
-### 7.3 Why Doctor Authentication Is Not Authorization
-
-A doctor account confirms doctor identity, not patient relationship. Without explicit patient-approved consent, a doctor should have no right to traverse patient-specific history. This prevents broad horizontal exposure risk where authenticated practitioners might otherwise enumerate records.
+A doctor must also pass consent checks for a specific patient.
 
 ## 8. Consent System Flow
 
-### 8.1 Consent as Access Contract
+Consent is the patient’s permission contract.
 
-Consent entities represent patient-issued, scoped, and time-limited access contracts for specific doctors.
+Flow:
 
-### 8.2 Consent Lifecycle
+1. Patient grants consent to a doctor.
+2. Consent includes scope + expiry time.
+3. Doctor requests patient records.
+4. Backend checks if consent exists and is still active.
+5. Access is allowed or denied.
+6. Patient can revoke consent early.
+7. Expired consent is automatically invalid.
 
-- consent created by patient
-- consent bound to doctor and defined scope
-- consent includes validity window
-- doctor access evaluated against active, unexpired consent
-- patient may revoke before expiration
-- access automatically denied after expiration
+Why consent expiry matters:
 
-### 8.3 Why Consent Expiration Matters
-
-Consent expiration prevents silent perpetual access and enforces periodic re-authorization. This reduces long-tail risk from forgotten permissions and keeps control active with the patient rather than static at time of first grant.
+- prevents old permissions from lasting forever
+- keeps control with the patient
+- reduces long-term exposure risk
 
 ## 9. Emergency Access Flow
 
-### 9.1 Emergency Scope Model
-
-Emergency contacts receive tightly constrained read visibility of critical medical essentials only:
+Emergency contacts only see limited critical info:
 
 - blood group
 - allergies
 - chronic diseases
 - current medications
 
-Sensitive/private consultation history remains blocked.
+They must not see:
 
-### 9.2 Emergency Access Lifecycle
+- private consultations
+- sensitive medical history not needed for emergency care
 
-- emergency contact authenticates
-- emergency route applies emergency role + scope middleware
-- service resolves only allowed fields
-- audit event generated with high-priority tagging
-- patient notification event should be triggered
+Flow:
 
-### 9.3 Logging and Notification Requirement
-
-Every emergency access attempt must be logged and associated with actor identity, target patient, timestamp, and source metadata. Patient notification closes the transparency loop and discourages misuse.
+1. Emergency contact authenticates.
+2. Backend confirms role and emergency relationship.
+3. Backend returns only allowed emergency fields.
+4. Access attempt is logged.
+5. Patient is notified.
 
 ## 10. Audit Logging System
 
-### 10.1 Core Audit Requirements
+Audit log records should include:
 
-Audit logs capture:
-
-- actor identity
-- target resource or patient
+- who performed the action
+- what resource was accessed
 - action type
 - timestamp
-- source IP
-- result status/context
+- IP address
+- result/status
 
-### 10.2 Audit Coverage Areas
+Audit everything important:
 
-- record view attempts
-- record creation events
-- consent grant/revoke actions
+- record views
+- consent grant/revoke
 - emergency access attempts
-- file download/stream requests
-- authentication and token lifecycle security events
+- file access
+- sensitive auth events
 
-### 10.3 Why Audit Logging Is Critical
+Why audit logging is critical:
 
-Audit logging provides forensic traceability, patient transparency, and operational governance. In systems handling medical history, inability to reconstruct who accessed what and when becomes a structural trust failure.
+- accountability
+- patient transparency
+- security investigation support
 
-## 11. Local File Upload and Storage Architecture
+## 11. Local File Storage Architecture (Mandatory)
 
-### 11.1 Local Storage Mandate
+Files are stored **locally on the server**, not in cloud storage.
 
-Medical reports are stored locally on server-managed directories, not cloud object stores. Database stores metadata references; physical files remain on disk.
+Design rule:
 
-### 11.2 Why Direct Public Upload Access Is Dangerous
+- MongoDB stores file metadata
+- actual file binary stays on local disk
 
-Publicly exposed upload directories create unauthorized discovery risk, bypass authorization pathways, and weaken audit guarantees. Report access must always be mediated through authenticated API routes that enforce consent and role policies.
+Example local structure style:
 
-### 11.3 Upload Handling Flow
-
-- client submits multipart upload to protected API route
-- middleware validates authentication and authorization context
-- validators enforce file constraints and request metadata validity
-- upload handler performs MIME/type and size verification
-- service computes secure patient-scoped storage path
-- unique server filename assigned
-- file written to local disk
-- metadata persisted in MongoDB
-- audit event recorded
-
-## 12. Local Filesystem Structure
-
-A patient-based directory structure should be used to keep files organized, partition risk, and simplify retention and access checks.
-
-Recommended structure concept:
-
-- `uploads/`
-- `uploads/patients/<patient-id>/`
 - `uploads/patients/<patient-id>/reports/`
-- optional period bucketing such as year/month for scale and filesystem hygiene
 
-### 12.1 Why Patient-Based Paths Matter
+Optional scaling-friendly structure:
 
-Patient-scoped directory boundaries simplify authorization correlation and incident containment. It becomes easier to reason about ownership, audit mismatches, and cleanup operations.
+- `uploads/patients/<patient-id>/reports/<year>/<month>/`
 
-### 12.2 Why Unique Filenames Are Important
+Why patient-based folders are useful:
 
-Unique filenames prevent collisions, overwrite attacks, and path inference through predictable naming. File names should be generated by backend utilities and decoupled from user-provided names.
+- easier file ownership mapping
+- cleaner organization
+- better incident isolation
 
-## 13. Upload Validation and Security Controls
+## 12. Upload Validation Flow
 
-Validation must include:
+When a file is uploaded:
 
-- MIME/type allowlist verification
-- file size constraints
-- extension sanity checks aligned to MIME
-- filename sanitization
-- request ownership and target-patient checks
+1. Authenticate user.
+2. Check role and patient permission.
+3. Validate metadata and request body.
+4. Validate MIME type (allowlist).
+5. Validate file size.
+6. Generate unique filename.
+7. Save file to local directory.
+8. Save metadata in MongoDB.
+9. Write audit log entry.
 
-### 13.1 Why MIME Validation Matters
+Why MIME validation matters:
 
-Extension-only validation is weak because extensions are user-controlled and easily spoofed. MIME-aware checks reduce risk of malicious content masquerading as medical reports.
+- file extensions can be faked
+- MIME checks reduce disguised malicious upload risk
 
-## 14. Secure File Access and Streaming
+Why unique filenames matter:
 
-### 14.1 Access Model
+- avoid collisions/overwrites
+- reduce predictability
+- prevent accidental replacement of old reports
 
-File retrieval must be through secured endpoints only. The backend should:
+## 13. Secure File Access Flow
 
-- authenticate requester
-- evaluate RBAC role
-- evaluate patient ownership/consent/emergency scope
-- locate file metadata in MongoDB
-- map metadata path to local filesystem object
-- stream file response after authorization pass
-- record audit event
+Files should never be publicly exposed from a direct URL.
 
-### 14.2 Why Files Must Not Be Publicly Exposed
+Secure streaming flow:
 
-Public serving bypasses consent checks, emergency restrictions, and actor attribution. Secure streaming preserves policy enforcement and event accountability for every read.
+1. User requests file through API.
+2. Backend authenticates JWT.
+3. Backend checks RBAC + consent/emergency policy.
+4. Backend loads file metadata from MongoDB.
+5. Backend resolves local disk path.
+6. Backend streams file if authorized.
+7. Backend logs access in audit logs.
 
-## 15. MongoDB Collection Design and Intent
+Why direct public upload access is dangerous:
 
-### 15.1 `Users`
+- bypasses permission checks
+- bypasses consent rules
+- bypasses emergency limits
+- bypasses audit visibility
 
-Stores identity and authentication-level user information, role assignment anchors, and account lifecycle fields.
+## 14. MongoDB Collections and Their Purpose
 
-### 15.2 `Patients`
+- `Users`: identity, role mapping, auth-linked account data
+- `Patients`: patient profile domain data
+- `Doctors`: doctor profile domain data
+- `MedicalRecords`: timeline entries, prescriptions, report metadata references
+- `Consents`: patient-doctor access permissions with expiry
+- `EmergencyContacts`: patient-emergency relationship mapping
+- `AuditLogs`: immutable access/action tracking
 
-Patient profile and patient-specific medical context anchors used across records, consent, and emergency mapping.
+Why separate collections are recommended:
 
-### 15.3 `Doctors`
+- better query performance
+- cleaner model boundaries
+- easier scaling and maintenance
 
-Doctor profile details and role-specific references required for consent relationships and consultation attribution.
+## 15. Middleware Responsibilities
 
-### 15.4 `MedicalRecords`
+Common middleware responsibilities:
 
-Append-oriented clinical history entries, including consultation notes, prescription data, timeline events, and file metadata references.
+- JWT verification
+- RBAC checks
+- consent checks
+- emergency scope checks
+- rate limiting
+- CORS policy handling
+- security headers (helmet)
+- centralized error passing
 
-### 15.5 `Consents`
+Good middleware ordering is important because early rejection saves resources and reduces attack surface.
 
-Patient-to-doctor authorization contracts with scope and expiry windows used in request-time access decisions.
+## 16. Services Layer Responsibilities
 
-### 15.6 `EmergencyContacts`
+Services should own business rules, such as:
 
-Mappings between patients and approved emergency contacts with role-bound emergency retrieval constraints.
+- consent validity checks
+- emergency data filtering
+- append-only medical record behavior
+- file metadata + disk path coherence
+- audit log writing orchestration
 
-### 15.7 `AuditLogs`
+This prevents scattered logic across controllers.
 
-Immutable activity trail records with actor, action, target, time, IP, and context metadata.
+## 17. Validators Responsibilities
 
-## 16. Middleware Architecture and Ordering
+Validators enforce input correctness before business logic runs.
 
-A practical middleware chain should preserve defense-in-depth:
+Validate:
 
-1. security headers and CORS controls
-2. rate limiting
-3. authentication parsing and token verification
-4. RBAC role checks
-5. consent or emergency scope checks (where applicable)
-6. payload/file validators
-7. controller execution
-8. centralized error handling
+- auth payloads (OTP/token inputs)
+- consent payloads (doctor, scope, expiry)
+- record payloads
+- upload payloads and metadata
 
-Ordering matters because early rejection reduces attack surface and resource usage.
+Strong validation reduces bugs and security issues.
 
-## 17. Services Layer Architecture
+## 18. Append-Only Medical Records Concept
 
-Services should own:
+Medical records should be append-only instead of directly editable.
 
-- business decisions for consent eligibility
-- emergency data shaping rules
-- append-only record mutation policy
-- audit event creation orchestration
-- file metadata to path coherence checks
-- token lifecycle support logic
+Meaning:
 
-This prevents policy drift caused by duplicating sensitive rules in route-level code.
+- old entries remain preserved
+- updates are added as new entries/events
 
-## 18. Validators Architecture
+Why this matters:
 
-Validators establish input integrity contracts before domain logic execution. They should be explicit per endpoint class:
+- keeps historical timeline trustworthy
+- improves legal/clinical traceability
+- aligns with audit-first architecture
 
-- auth validators for OTP and token flow payloads
-- consent validators for scope/time windows
-- record validators for structured medical entries
-- upload validators for file + metadata alignment
+## 19. Security Architecture Checklist
 
-Strong validation narrows attack vectors and improves predictability in error handling.
+- bcrypt for password hashing (where passwords are used)
+- JWT + refresh token strategy
+- AES-256 concept for sensitive field protection
+- rate limiting for abuse resistance
+- helmet for security headers
+- CORS restrictions
+- strict upload validation
+- secure local file access only via authorized API
 
-## 19. Security Architecture
+## 20. Environment Variables (Configuration)
 
-### 19.1 Credential and Token Security
+Keep sensitive configs in environment variables:
 
-- password hashing with bcrypt where password artifacts exist
-- JWT access tokens with refresh token strategy
-- token verification at every protected boundary
-
-### 19.2 Data Protection Controls
-
-- AES-256 encryption for sensitive fields where required by policy
-- strict handling of sensitive identifiers; avoid storing complete high-risk identity artifacts
-
-### 19.3 API Surface Hardening
-
-- helmet-based security headers
-- CORS policy control
-- request rate limiting to mitigate brute force and abuse
-
-### 19.4 File Access Security
-
-- no direct public browsing of uploads
-- authorization before every file stream
-- deterministic path resolution from trusted metadata
-
-### 19.5 Why Local Storage Needs Strict Protection
-
-Local disk is part of production attack surface. Without strict directory permissions, path controls, and API-mediated access, report artifacts become vulnerable to unauthorized reads, traversal attempts, or accidental exposure.
-
-## 20. Error Handling Architecture
-
-Centralized error handling should normalize response format, preserve client-safe messages, and prevent sensitive stack/internal leakage. Domain services should raise typed errors; controllers/middleware translate them into consistent HTTP semantics.
-
-Audit-relevant failures (such as denied access attempts) should still produce audit entries where policy requires visibility.
-
-## 21. Logging Strategy Beyond Audit Logs
-
-Operational logging should coexist with audit logging but remain distinct in purpose.
-
-- audit logs: security and compliance traceability
-- application logs: diagnostics, performance visibility, error triage
-
-Separation avoids mixing forensic records with noisy runtime telemetry while preserving both observability tracks.
-
-## 22. API Versioning Strategy
-
-Versioned route namespaces should isolate future contract changes and enable backward compatibility planning. Versioning avoids disruptive interface drift and allows iterative hardening of consent or emergency policy representations without breaking existing clients.
-
-## 23. Environment Variables and Configuration Boundaries
-
-Sensitive and environment-specific settings should be externalized via environment variables, including:
-
-- JWT secrets and token expiry policy controls
+- JWT secrets and token expiry values
 - encryption keys
-- database connection settings
+- MongoDB connection URI
 - OTP provider settings
-- rate limit configuration
-- upload directory roots and size limits
+- upload directory root path
+- max upload file size
+- rate limit settings
 
-This preserves secure configuration management and avoids hardcoded secrets.
+This avoids hardcoded secrets in source code.
 
-## 24. Background Jobs and Deferred Work
+## 21. Error Handling Architecture
 
-Background processing is valuable for non-blocking tasks that should not delay synchronous API responses, such as:
+Use centralized error handling to:
 
-- notification dispatch for emergency access events
-- periodic consent-expiry housekeeping
-- log archival workflows
+- return consistent error response format
+- avoid leaking internal stack traces
+- map business errors to proper HTTP status
+- keep client behavior predictable
 
-Job execution should remain policy-aware and auditable when handling security-relevant events.
+Denied access attempts should still be auditable when required.
+
+## 22. Logging Strategy
+
+Use two logging streams:
+
+- **Audit logs:** security/compliance/accountability events
+- **Application logs:** debugging, performance, runtime errors
+
+Keeping them separate makes investigations clearer.
+
+## 23. Background Jobs (Non-Blocking Tasks)
+
+Useful background tasks:
+
+- emergency access notification dispatch
+- consent expiration housekeeping
+- log archival/maintenance tasks
+
+These should run without delaying critical API responses.
+
+## 24. API Versioning
+
+Version endpoints (for example, versioned route groups) to:
+
+- avoid breaking clients
+- support safe feature evolution
+- preserve backward compatibility
 
 ## 25. Backend Scaling Considerations
 
-Scaling should preserve security guarantees while improving throughput:
+As usage grows:
 
-- maintain stateless JWT-protected API nodes
-- ensure shared understanding of upload root strategy when scaling across instances
-- preserve consistent audit write behavior under load
-- index consent and audit collections for request-time authorization and timeline queries
+- keep API nodes stateless for easier horizontal scaling
+- ensure all nodes can securely access local file storage strategy
+- index frequently queried collections (consents, logs, records)
+- keep authorization checks request-time accurate
 
-When scaling local file storage, architecture must ensure that all nodes can securely resolve referenced files without bypassing policy checks.
+Scaling must never weaken consent or audit guarantees.
 
-## 26. File Organization Strategy as an Architectural Control
+## 26. Why These Decisions Matter Together
 
-File organization is not only operational hygiene; it is a security and maintainability decision. Structuring local directories by patient and resource type improves:
+This backend is designed so that security controls reinforce each other:
 
-- authorization reasoning
-- data lifecycle operations
-- traceability across metadata and disk
-- incident response containment
+- authentication proves identity
+- RBAC limits role-level abilities
+- consent controls patient-specific access
+- emergency mode gives minimal necessary data only
+- local file protection prevents bypass paths
+- audit logs create complete accountability
 
-## 27. Why Medical Records Should Not Be Directly Editable
+Final result:
 
-Direct in-place edits of historical medical entries can erase factual chronology and weaken medico-legal reliability. Append-only progression preserves clinical timeline truth, supports transparent correction patterns, and strengthens audit coherence.
-
-## 28. Integrated Flow: How Authentication, RBAC, Consent, Emergency Access, Audit, and File Storage Work Together
-
-The complete backend design is an orchestrated policy chain:
-
-1. actor authenticates through OTP + JWT flow.
-2. request enters protected route.
-3. RBAC establishes role-level capability boundary.
-4. consent or emergency policy determines patient-data eligibility.
-5. service executes permitted operation on records and/or local file metadata.
-6. if file content is requested, backend maps authorized metadata to local disk and securely streams content.
-7. audit event records action details, context, timestamp, and IP.
-8. patient-facing transparency is enabled through audit log visibility, and emergency attempts trigger notification workflows.
-
-This integrated path guarantees that identity alone never bypasses consent logic, emergency mode remains tightly scoped, and local file artifacts remain protected by server-side access controls at all times.
-
-## 29. Development Phase Alignment (Architectural Evolution)
-
-The recommended phased progression maps naturally to backend hardening:
-
-- Phase 1: auth, role model, foundational dashboards and protected route scaffolding
-- Phase 2: medical record services + local upload pipeline
-- Phase 3: consent contracts and request-time consent enforcement
-- Phase 4: emergency-limited access pathways and notification hooks
-- Phase 5: comprehensive audit log exposure and governance workflows
-
-This sequence prioritizes secure identity and policy enforcement before broadening data interaction surfaces.
-
-## 30. Final Architectural Position
-
-The backend architecture is defined by controlled trust boundaries, patient-governed authorization, immutable-style clinical history, locally secured report storage, and pervasive auditability. The system’s resilience depends on preserving these boundaries consistently across routes, services, middleware, data models, and file subsystem operations. Any future extension should be evaluated against these same principles to avoid eroding the security and consent guarantees that form the foundation of the platform.
+- patient remains in control
+- doctors get controlled access when authorized
+- emergency responders get life-critical minimum data
+- every sensitive action is traceable
+- medical files stay locally protected on server infrastructure
