@@ -7,10 +7,10 @@
  * - Starts HTTP server.
  */
 
-const app = require('./app');
-const env = require('./config/env');
-const logger = require('./config/logger');
-const { ensureUploadsRoot } = require('./services/startup.service');
+import app from './app.js';
+import env from './config/env.js';
+import logger from './config/logger.js';
+import { ensureUploadsRoot } from './services/startup.service.js';
 
 function startServer() {
   ensureUploadsRoot();

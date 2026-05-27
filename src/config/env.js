@@ -3,8 +3,8 @@
  * Read this file top-to-bottom and you will understand all app config values.
  */
 
-const path = require('path');
-const dotenv = require('dotenv');
+import path from 'path';
+import dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -37,4 +37,4 @@ if (!Number.isFinite(env.RATE_LIMIT_MAX_REQUESTS)) {
 // 3) Build absolute path for local uploads directory.
 env.UPLOAD_ROOT_ABSOLUTE = path.resolve(process.cwd(), env.UPLOAD_ROOT);
 
-module.exports = env;
+export default env;

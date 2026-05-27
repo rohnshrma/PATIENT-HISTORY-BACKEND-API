@@ -7,8 +7,8 @@
  * - Keep detailed diagnostics in server logs only.
  */
 
-const logger = require('../config/logger');
-const AppError = require('../utils/AppError');
+import logger from '../config/logger.js';
+import AppError from '../utils/AppError.js';
 
 function errorHandler(err, req, res, next) {
   const isKnownError = err instanceof AppError;
@@ -45,4 +45,4 @@ function errorHandler(err, req, res, next) {
   res.status(statusCode).json(response);
 }
 
-module.exports = errorHandler;
+export default errorHandler;

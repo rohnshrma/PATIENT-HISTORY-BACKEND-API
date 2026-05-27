@@ -14,15 +14,15 @@
  * 9) centralized error handler
  */
 
-const express = require('express');
+import express from 'express';
 
-const env = require('./config/env');
-const requestContext = require('./middleware/requestContext');
-const requestLogger = require('./middleware/requestLogger');
-const { helmetMiddleware, corsMiddleware, rateLimitMiddleware } = require('./middleware/security');
-const notFound = require('./middleware/notFound');
-const errorHandler = require('./middleware/errorHandler');
-const v1Routes = require('./routes/v1');
+import env from './config/env.js';
+import requestContext from './middleware/requestContext.js';
+import requestLogger from './middleware/requestLogger.js';
+import { helmetMiddleware, corsMiddleware, rateLimitMiddleware } from './middleware/security.js';
+import notFound from './middleware/notFound.js';
+import errorHandler from './middleware/errorHandler.js';
+import v1Routes from './routes/v1/index.js';
 
 const app = express();
 
@@ -53,4 +53,4 @@ app.use(notFound);
 // (9) Central error handler
 app.use(errorHandler);
 
-module.exports = app;
+export default app;

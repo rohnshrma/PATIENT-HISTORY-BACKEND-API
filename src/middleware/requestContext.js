@@ -5,7 +5,7 @@
  * This helps correlate request logs with error logs.
  */
 
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 function requestContext(req, res, next) {
   req.context = {
@@ -17,4 +17,4 @@ function requestContext(req, res, next) {
   next();
 }
 
-module.exports = requestContext;
+export default requestContext;

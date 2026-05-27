@@ -5,7 +5,7 @@
  * error middleware.
  */
 
-const AppError = require('../utils/AppError');
+import AppError from '../utils/AppError.js';
 
 function notFound(req, res, next) {
   next(
@@ -17,4 +17,4 @@ function notFound(req, res, next) {
   );
 }
 
-module.exports = notFound;
+export default notFound;

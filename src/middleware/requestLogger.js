@@ -5,8 +5,8 @@
  * We inject request-id into logs to make debugging much easier.
  */
 
-const morgan = require('morgan');
-const logger = require('../config/logger');
+import morgan from 'morgan';
+import logger from '../config/logger.js';
 
 morgan.token('request-id', (req) => req.context?.requestId || 'unknown');
 
@@ -21,4 +21,4 @@ const requestLogger = morgan(
   }
 );
 
-module.exports = requestLogger;
+export default requestLogger;

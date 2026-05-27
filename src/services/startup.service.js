@@ -7,10 +7,10 @@
  * - Ensure uploads root is private (not auto-served as static assets).
  */
 
-const fs = require('fs');
-const path = require('path');
-const env = require('../config/env');
-const logger = require('../config/logger');
+import fs from 'fs';
+import path from 'path';
+import env from '../config/env.js';
+import logger from '../config/logger.js';
 
 function ensureDirectoryExists(directoryPath) {
   if (!fs.existsSync(directoryPath)) {
@@ -35,6 +35,4 @@ function ensureUploadsRoot() {
   logger.info('Upload root ready', { uploadRoot: env.UPLOAD_ROOT_ABSOLUTE });
 }
 
-module.exports = {
-  ensureUploadsRoot
-};
+export { ensureUploadsRoot };

@@ -5,11 +5,11 @@
  * As new feature route modules are built, they are mounted here.
  */
 
-const express = require('express');
-const healthRoutes = require('./health.routes');
+import express from 'express';
+import healthRoutes from './health.routes.js';
 
 const router = express.Router();
 
 router.use(healthRoutes);
 
-module.exports = router;
+export default router;

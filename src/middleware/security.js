@@ -7,11 +7,11 @@
  * - Rate limiter: baseline abuse protection
  */
 
-const helmet = require('helmet');
-const cors = require('cors');
-const rateLimit = require('express-rate-limit');
-const env = require('../config/env');
-const AppError = require('../utils/AppError');
+import helmet from 'helmet';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
+import env from '../config/env.js';
+import AppError from '../utils/AppError.js';
 
 // Helmet adds safer HTTP headers.
 const helmetMiddleware = helmet();
@@ -56,7 +56,7 @@ const rateLimitMiddleware = rateLimit({
   }
 });
 
-module.exports = {
+export {
   helmetMiddleware,
   corsMiddleware,
   rateLimitMiddleware

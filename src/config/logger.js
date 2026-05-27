@@ -3,7 +3,7 @@
  * Format: [time] [level] message {optional data}
  */
 
-const env = require('./env');
+import env from './env.js';
 
 function log(level, message, data) {
   const time = new Date().toISOString();
@@ -14,7 +14,7 @@ function log(level, message, data) {
   }
 }
 
-module.exports = {
+const logger = {
   info(message, data) {
     log('INFO', message, data);
   },
@@ -30,3 +30,5 @@ module.exports = {
     }
   }
 };
+
+export default logger;
