@@ -1,39 +1,32 @@
 /**
- * src/config/logger.js
- *
- * Lightweight logger wrapper so logs look consistent and are easy to search.
- * In later features, this can be replaced with Winston/Pino without changing
- * every file.
+ * Very simple logger for beginners.
+ * Format: [time] [level] message {optional data}
  */
 
 const env = require('./env');
 
-function formatMessage(level, message, meta = {}) {
-  const payload = {
-    timestamp: new Date().toISOString(),
-    level,
-    message,
-    ...meta
-  };
-
-  return JSON.stringify(payload);
+function log(level, message, data) {
+  const time = new Date().toISOString();
+  if (data) {
+    console.log(`[${time}] [${level}] ${message}`, data);
+  } else {
+    console.log(`[${time}] [${level}] ${message}`);
+  }
 }
 
-const logger = {
-  info(message, meta) {
-    console.log(formatMessage('info', message, meta));
+module.exports = {
+  info(message, data) {
+    log('INFO', message, data);
   },
-  warn(message, meta) {
-    console.warn(formatMessage('warn', message, meta));
+  warn(message, data) {
+    log('WARN', message, data);
   },
-  error(message, meta) {
-    console.error(formatMessage('error', message, meta));
+  error(message, data) {
+    log('ERROR', message, data);
   },
-  debug(message, meta) {
+  debug(message, data) {
     if (env.NODE_ENV !== 'production') {
-      console.log(formatMessage('debug', message, meta));
+      log('DEBUG', message, data);
     }
   }
 };
-
-module.exports = logger;

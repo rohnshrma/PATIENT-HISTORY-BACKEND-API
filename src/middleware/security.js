@@ -13,17 +13,23 @@ const rateLimit = require('express-rate-limit');
 const env = require('../config/env');
 const AppError = require('../utils/AppError');
 
+// Helmet adds safer HTTP headers.
 const helmetMiddleware = helmet();
 
+// CORS decides which frontend origins can call this backend.
 const corsMiddleware = cors({
   origin(origin, callback) {
-    // Allow requests without an Origin header (like server-to-server or Postman).
-    if (!origin) return callback(null, true);
+    // Allow tools like Postman (no browser origin).
+    if (!origin) {
+      return callback(null, true);
+    }
 
+    // In development, allow all origins for easy local testing.
     if (env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
 
+    // In production, allow only configured origins.
     if (env.CORS_ORIGINS.includes(origin)) {
       return callback(null, true);
     }
@@ -33,15 +39,16 @@ const corsMiddleware = cors({
   credentials: true
 });
 
+// Rate limiter protects from too many requests.
 const rateLimitMiddleware = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
   max: env.RATE_LIMIT_MAX_REQUESTS,
   standardHeaders: true,
   legacyHeaders: false,
-  handler(req, res, next, options) {
+  handler(req, res, next) {
     next(
       new AppError(
-        `Too many requests. Please try again after ${Math.ceil(options.windowMs / 1000)} seconds.`,
+        'Too many requests. Please try again later.',
         429,
         'RATE_LIMIT_EXCEEDED'
       )

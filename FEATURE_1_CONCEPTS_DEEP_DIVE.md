@@ -1,110 +1,82 @@
-# Feature 1 Concepts Deep Dive
+# Feature 1 Explanation (Student-Friendly)
 
-This file explains the backend concepts implemented in **Feature 1 (Project Foundation and Secure Skeleton)** in a beginner-friendly and practical way.
+This file explains Feature 1 in simple language based on the **current code**.
 
----
+## 1) What Feature 1 is
 
-## 1. Why Feature 1 Exists
+Feature 1 means: build a safe backend skeleton before business logic.
 
-Feature 1 is the base layer for everything else.
+So we set up:
+- clean folder structure,
+- secure middleware,
+- versioned API path,
+- common error handling,
+- env configuration,
+- private local uploads folder.
 
-If we build OTP, medical records, file access, consent, and emergency flows **without** a strong base:
-- security checks get inconsistent,
-- errors look different in every endpoint,
-- logs become hard to trust,
-- and sensitive files can accidentally become public.
+## 2) Where to start reading code
 
-So Feature 1 gives us:
-- a clean project structure,
-- secure default middleware,
-- consistent error behavior,
-- environment validation,
-- and private local upload setup.
+Read in this order:
+1. `src/server.js`
+2. `src/app.js`
+3. `src/routes/v1/health.routes.js`
+4. `src/config/env.js`
+5. `src/middleware/security.js`
+6. `src/middleware/errorHandler.js`
+7. `src/services/startup.service.js`
 
----
+## 3) Folder structure (why it exists)
 
-## 2. Folder Structure and Separation of Responsibilities
+Inside `src/`:
+- `config`: app settings (env, logger)
+- `routes`: endpoint paths
+- `controllers`: request handlers (used more in next features)
+- `services`: reusable logic
+- `models`: DB models (later features)
+- `middleware`: request pipeline logic
+- `validators`: input checks (later features)
+- `utils`: helper classes like `AppError`
+- `uploads`: upload-related code area
 
-Implemented structure under `src/`:
+This keeps code organized and easier for students to navigate.
 
-- `config/`  
-  App configuration code (environment variables, logger setup).
+## 4) API Prefix and versioning
 
-- `routes/`  
-  API endpoints (URL handlers). In Feature 1, this includes versioned route organization.
+From `.env.example`:
+- `API_PREFIX=/api/v1`
 
-- `controllers/`  
-  Route-level request handlers (not yet deeply used in Feature 1, reserved for later features).
-
-- `services/`  
-  Business logic and startup/service-level helpers.
-
-- `models/`  
-  Database schemas/models (used in later features).
-
-- `middleware/`  
-  Reusable request/response pipeline logic (auth later, security + errors now).
-
-- `validators/`  
-  Request validation modules (used heavily in later features).
-
-- `utils/`  
-  Shared utility classes/functions (e.g., custom error class).
-
-- `uploads/`  
-  Private local storage root for sensitive files.
-
-### Why this matters
-
-Without separation, code turns into one giant file and becomes fragile. With separation, each layer has one job.
-
----
-
-## 3. API Prefix and Versioning (`API_PREFIX`)
-
-### What is API prefix?
-
-An API prefix is a base path for all endpoints, such as:
-- `/api/v1/health`
-
-Here:
-- `/api` = this is an API (not a web page route),
-- `/v1` = version 1 contract.
-
-### Why versioning now?
-
-Even if only one endpoint exists today, versioning early prevents future breakage.
-
-If later we need a breaking change, we can create `/api/v2/...` while old clients continue using `/api/v1/...`.
-
-### Where configured
-
-- `.env.example` has `API_PREFIX=/api/v1`
-- App mounts routes using this prefix in `src/app.js`.
-
----
-
-## 4. Environment Variable Contract and Validation
-
-### What was implemented
-
-`src/config/env.js`:
-- loads `.env` using `dotenv`,
-- requires important keys,
-- converts numeric values safely,
-- parses comma-separated CORS origins,
-- computes absolute upload path.
-
-### Why validate on startup?
-
-Failing fast is safer than failing late.
+In `src/app.js`, all routes are mounted under this prefix.
 
 Example:
-- If `PORT` is invalid and we do not validate, app may crash unexpectedly later.
-- If `UPLOAD_ROOT` is missing, file logic can break in confusing ways.
+- `GET /api/v1/health`
 
-### Keys currently defined
+Why: when future breaking changes happen, we can create `/api/v2` without breaking old clients.
 
+## 5) Middleware order (important)
+
+In `src/app.js`, order is:
+1. request context
+2. JSON parser
+3. helmet
+4. cors
+5. rate limiter
+6. request logger
+7. routes
+8. not-found handler
+9. error handler
+
+Reason: middleware runs top-to-bottom. Wrong order can break security and debugging.
+
+## 6) Environment variables
+
+`src/config/env.js` does:
+- load `.env` values,
+- set defaults,
+- convert number fields,
+- validate number fields,
+- build absolute upload path.
+
+Current keys:
 - `NODE_ENV`
 - `PORT`
 - `API_PREFIX`
@@ -114,256 +86,83 @@ Example:
 - `UPLOAD_ROOT`
 - `LOG_LEVEL`
 
----
-
-## 5. Middleware Pipeline Order (Very Important)
-
-Feature 1 enforced secure order in `src/app.js`:
-
-1. request context
-2. JSON parser
-3. helmet
-4. cors
-5. rate limiter
-6. request logger
-7. versioned routes
-8. not found handler
-9. centralized error handler
-
-### Why order matters
-
-Middleware runs top-to-bottom. Wrong order can cause:
-- missing security headers,
-- untracked requests,
-- inconsistent errors,
-- or skipped protections.
-
----
-
-## 6. Request Context (`x-request-id`)
-
-### What it does
-
-A unique ID is generated for each request and attached as:
-- `req.context.requestId`,
-- response header `x-request-id`.
-
-### Why it matters
-
-If user reports a problem, we can search logs by request ID and trace exactly what happened.
-
----
-
-## 7. JSON Parser Baseline
-
-### What it does
-
-`express.json({ limit: '1mb' })`:
-- reads JSON request bodies,
-- rejects overly large JSON payloads.
-
-### Why payload limit matters
-
-Large body limits can be abused for memory pressure attacks. A sane baseline reduces abuse risk.
-
----
-
-## 8. Helmet (Security Headers)
-
-### What it is
-
-`helmet()` sets defensive HTTP headers automatically.
-
-### Why this matters
-
-It helps protect against common browser-based attacks by setting secure defaults like content-type/sniffing and frame protections.
-
-Helmet does not replace auth or consent checks, but it strengthens transport-level security posture.
-
----
-
-## 9. CORS Policy
-
-### What is CORS?
-
-CORS controls which browser origins can call this API.
-
-Origin example:
-- `http://localhost:3000`
-- `https://myfrontend.com`
-
-### Current behavior
+## 7) CORS (who can call backend from browser)
 
 In `src/middleware/security.js`:
-- requests with no `Origin` header are allowed (common for tools/server-to-server).
-- in non-production, origins are broadly allowed to support development.
-- in production, only configured `CORS_ORIGINS` are allowed.
-- blocked origins get a typed `403` error (`CORS_FORBIDDEN`).
+- no `Origin` header (Postman/server-to-server) -> allowed
+- development mode -> allow all origins for easy local testing
+- production mode -> allow only origins in `CORS_ORIGINS`
+- blocked origins -> `403` with `CORS_FORBIDDEN`
 
-### Why this matters
+## 8) Rate limiting (basic abuse protection)
 
-Without strict production CORS, browsers from untrusted websites could call your API using a logged-in user context.
+Also in `src/middleware/security.js`:
+- controlled by `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX_REQUESTS`
+- too many requests -> `429` with `RATE_LIMIT_EXCEEDED`
 
----
+This protects against spam/flood requests.
 
-## 10. Rate Limiting Baseline
+## 9) Request logging
 
-### What it is
+`src/middleware/requestLogger.js` + `src/config/logger.js`:
+- logs method, URL, status, response time
+- includes request id
 
-Rate limiting controls how many requests a client can make in a time window.
+This helps debugging because every request can be traced.
 
-Configured by:
-- `RATE_LIMIT_WINDOW_MS`
-- `RATE_LIMIT_MAX_REQUESTS`
+## 10) Request ID (`x-request-id`)
 
-### Current behavior
+`src/middleware/requestContext.js`:
+- creates a unique id per request,
+- attaches it to request object,
+- sends it in response header `x-request-id`.
 
-If a client exceeds the limit:
-- request is blocked,
-- app returns structured `429 Too Many Requests`,
-- error code: `RATE_LIMIT_EXCEEDED`.
+If an error happens, this id helps find matching log lines.
 
-### Why this matters
+## 11) Centralized error handling
 
-Rate limits reduce:
-- brute-force attempts,
-- basic denial-of-service pressure,
-- accidental client request floods.
+Files:
+- `src/utils/AppError.js`
+- `src/middleware/notFound.js`
+- `src/middleware/errorHandler.js`
 
-In later features, limits can be tuned per endpoint sensitivity (auth/upload stricter than health checks).
+Benefits:
+- one consistent error response style,
+- cleaner API behavior,
+- no stack trace leak in production.
 
----
+## 12) Uploads are local and private
 
-## 11. Request Logging Baseline
+`src/services/startup.service.js` + `src/server.js`:
+- creates upload root folder at startup,
+- writes `.private` marker file,
+- does not expose uploads using public static route.
 
-### What was implemented
+Why: medical files must never be publicly accessible.
 
-`morgan` is used to log:
-- HTTP method,
-- URL,
-- status code,
-- response time,
-- request ID.
+## 13) Health route
 
-Logs are passed through a structured logger (`src/config/logger.js`) and printed as JSON-style entries for easier search/analysis.
-
-### Why structured logs?
-
-Free-text logs are hard to query. Structured logs make debugging and monitoring much easier.
-
----
-
-## 12. Centralized Error Handling
-
-### Components
-
-- `AppError` class (`src/utils/AppError.js`)
-- 404 middleware (`src/middleware/notFound.js`)
-- global error middleware (`src/middleware/errorHandler.js`)
-
-### What this gives us
-
-- uniform response format for errors,
-- stable machine-readable error codes,
-- stack traces hidden in production,
-- request-linked error logs for debugging.
-
-### Error response shape
-
-Typical structure:
-- `success: false`
-- `error.code`
-- `error.message`
-- optional `error.details`
-- `requestId`
-
-This consistency is very useful for frontend and mobile clients.
-
----
-
-## 13. Upload Root (Local, Private, Not Public)
-
-### What Feature 1 implemented
-
-At startup (`src/services/startup.service.js`):
-- ensures upload root directory exists,
-- creates a `.private` marker file,
-- logs initialization.
-
-### Security intent
-
-The uploads directory stores sensitive medical files in later phases.
-
-So in Feature 1 we already enforce the principle:
-- **uploads must exist locally**,
-- **uploads must not be auto-exposed via static public serving**.
-
-Important: The app does **not** mount uploads as `express.static(...)`. That is intentional.
-
-### Why this matters
-
-If files become public URLs, authentication/RBAC/consent checks can be bypassed. Later features will serve files only through secured API routes.
-
----
-
-## 14. Health Route in Versioned Namespace
-
-Implemented endpoint:
+`src/routes/v1/health.routes.js`:
 - `GET /api/v1/health`
 
-Purpose:
-- confirm backend is alive,
-- verify middleware and versioned routing are wired correctly,
-- provide request ID in response.
+Used to verify server, route mounting, and middleware setup.
 
-This is a safe operational endpoint used for deployment checks and debugging.
+## 14) Feature 1 status checklist
 
----
+Feature 1 requirements are satisfied:
+- modular structure: yes
+- versioned API base path: yes
+- secure middleware baseline: yes
+- centralized error handling: yes
+- env contract + validation: yes
+- request logging baseline: yes
+- local uploads root and private access model: yes
 
-## 15. Security Baseline Summary (What We Have So Far)
+## 15) Quick run steps
 
-After Feature 1, backend already has:
-- secure middleware defaults,
-- controlled CORS behavior,
-- baseline anti-abuse rate limiting,
-- consistent errors,
-- request traceability with request IDs,
-- private local upload root preparation,
-- API versioning foundation.
+1. create `.env` from `.env.example`
+2. run `npm install`
+3. run `npm run dev`
+4. test `GET http://localhost:5000/api/v1/health`
 
-What it does **not** yet have (next features):
-- OTP authentication,
-- JWT auth guards,
-- RBAC role guards,
-- consent checks,
-- emergency scope checks,
-- audit log persistence model.
-
----
-
-## 16. Quick Run Notes
-
-1. Create `.env` from `.env.example`.
-2. Install dependencies: `npm install`
-3. Start server: `npm run dev` (or `npm start`)
-4. Test: `GET http://localhost:5000/api/v1/health`
-
-Expected result:
-- success response,
-- `x-request-id` in headers,
-- request log line in terminal,
-- `uploads/` exists locally.
-
----
-
-## 17. Beginner Mental Model
-
-Think of Feature 1 as building a hospital building before admitting patients:
-- structure = folders and modules,
-- entrance security = middleware,
-- visitor records = logging,
-- incident desk = centralized errors,
-- locked storage room = private uploads,
-- floor numbering = API versioning.
-
-Only after this foundation is stable should we add identity, consent, and medical record logic.
+If health works, Feature 1 foundation is active.
